@@ -25,12 +25,17 @@ Oyakodon (<https://twitter.com/alltekito>)
 ## プロジェクト
 
 - wm4s3d : wm4s3d本体。実行すると、上のスクリーンショットのように動作確認ができます。
-- Wiimote : 内部のWiiリモコンと接続してるプログラム。コアの部分です。
+- Wiimote : Wiiリモコンとの通信をするプログラム。コアの部分です。
 
 ## 使い方・動作確認
 
-- Visual Studioでプロジェクトをビルドしてください。(Siv3Dが必要です)
-- Windows 10でのWiiリモコンのBluetoothペアリングは　<https://shirabeta-stock.com/wiiremote_pairing/>　を参考に起動前に済ませてください。
+- Visual Studioでプロジェクトをビルドしてください。
+  - Siv3Dが必要です。
+  - Engineフォルダは容量の関係でリポジトリに含めていないので、注意してください。
+
+- Windows 10でのWiiリモコンのBluetoothペアリングは起動前に済ませてください。
+  - 参考 : <https://shirabeta-stock.com/wiiremote_pairing/>
+
 - Windows 10 (バージョン1703, OSビルド15063.674)で、Wiiリモコン2台同時接続ができることを確認しています。 (ヌンチャクも確認済み)
 
 ## sample.raw
