@@ -288,6 +288,7 @@ __pycache__/
 *.xsd.cs
 
 # For Siv3D
+Example/
 Engine/
 Screenshot/
 *.html
