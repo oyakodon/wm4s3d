@@ -28,6 +28,12 @@ Oyakodon (<https://twitter.com/alltekito>)
 - wm4s3d : wm4s3d本体。実行すると、上のスクリーンショットのように動作確認ができます。
 - Wiimote : Wiiリモコンとの通信をするプログラム。コアの部分です。
 
+## ダウンロード
+
+- wm4s3dをビルドしたものをダウンロードできます。
+  - 32bit : <https://github.com/oyakodon/wm4s3d/releases/download/v1.0/x86.zip>
+  - 64bit : <https://github.com/oyakodon/wm4s3d/releases/download/v1.0/x64.zip>
+
 ## 使い方・動作確認
 
 - Visual Studioでプロジェクトをビルドしてください。
