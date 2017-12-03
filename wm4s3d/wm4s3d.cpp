@@ -7,30 +7,28 @@ Button::Button()
 	pressedStart = std::chrono::system_clock::now();
 }
 
-bool Wii::m_forceReport = false;
-
 Wii::Wii()
 {
-	controller.open(m_forceReport);
-
-	m_buttons[ButtonType::One]		= &buttonOne;
-	m_buttons[ButtonType::Two]		= &buttonTwo;
-	m_buttons[ButtonType::A]		= &buttonA;
-	m_buttons[ButtonType::B]		= &buttonB;
-	m_buttons[ButtonType::Minus]	= &buttonMinus;
-	m_buttons[ButtonType::Plus]		= &buttonPlus;
-	m_buttons[ButtonType::Home]		= &buttonHome;
-	m_buttons[ButtonType::Up]		= &buttonUp;
-	m_buttons[ButtonType::Down]		= &buttonDown;
-	m_buttons[ButtonType::Left]		= &buttonLeft;
-	m_buttons[ButtonType::Right]	= &buttonRight;
-	m_buttons[ButtonType::C]		= &buttonC;
-	m_buttons[ButtonType::Z]		= &buttonZ;
+	m_buttons[ButtonType::One] = &buttonOne;
+	m_buttons[ButtonType::Two] = &buttonTwo;
+	m_buttons[ButtonType::A] = &buttonA;
+	m_buttons[ButtonType::B] = &buttonB;
+	m_buttons[ButtonType::Minus] = &buttonMinus;
+	m_buttons[ButtonType::Plus] = &buttonPlus;
+	m_buttons[ButtonType::Home] = &buttonHome;
+	m_buttons[ButtonType::Up] = &buttonUp;
+	m_buttons[ButtonType::Down] = &buttonDown;
+	m_buttons[ButtonType::Left] = &buttonLeft;
+	m_buttons[ButtonType::Right] = &buttonRight;
+	m_buttons[ButtonType::C] = &buttonC;
+	m_buttons[ButtonType::Z] = &buttonZ;
 }
 
 Wii::~Wii()
 {
-	if (controller.isOpened())
+	Wiimote::stopScan();
+
+	if (controller.isConnected())
 	{
 		controller.close();
 	}
@@ -43,30 +41,30 @@ void Wii::update()
 		i.second = false;
 	}
 
-	if (controller.isOpened())
+	if (controller.isConnected())
 	{
-		m_pressed[ButtonType::One]		= controller.buttons.One;
-		m_pressed[ButtonType::Two]		= controller.buttons.Two;
-		m_pressed[ButtonType::A]		= controller.buttons.A;
-		m_pressed[ButtonType::B]		= controller.buttons.B;
-		m_pressed[ButtonType::Minus]	= controller.buttons.Minus;
-		m_pressed[ButtonType::Plus]		= controller.buttons.Plus;
-		m_pressed[ButtonType::Home]		= controller.buttons.Home;
-		m_pressed[ButtonType::Up]		= controller.buttons.Up;
-		m_pressed[ButtonType::Down]		= controller.buttons.Down;
-		m_pressed[ButtonType::Left]		= controller.buttons.Left;
-		m_pressed[ButtonType::Right]	= controller.buttons.Right;
+		m_pressed[ButtonType::One] = controller.buttons.One;
+		m_pressed[ButtonType::Two] = controller.buttons.Two;
+		m_pressed[ButtonType::A] = controller.buttons.A;
+		m_pressed[ButtonType::B] = controller.buttons.B;
+		m_pressed[ButtonType::Minus] = controller.buttons.Minus;
+		m_pressed[ButtonType::Plus] = controller.buttons.Plus;
+		m_pressed[ButtonType::Home] = controller.buttons.Home;
+		m_pressed[ButtonType::Up] = controller.buttons.Up;
+		m_pressed[ButtonType::Down] = controller.buttons.Down;
+		m_pressed[ButtonType::Left] = controller.buttons.Left;
+		m_pressed[ButtonType::Right] = controller.buttons.Right;
 
 		auto ir = controller.pointer.getBarPos();
 		pointer = { ir.pos.x, ir.pos.y };
 		joystick = { controller.nunchuk.Joystick.x, controller.nunchuk.Joystick.y };
 
-		if (isNunchukOK())
+		if (isNunchukConnected())
 		{
 			m_pressed[ButtonType::C] = controller.nunchuk.C;
-			m_pressed[ButtonType::Z] = controller.nunchuk.Z;	
+			m_pressed[ButtonType::Z] = controller.nunchuk.Z;
 		}
-		
+
 	}
 	else
 	{
@@ -74,12 +72,12 @@ void Wii::update()
 		joystick = { -1, -1 };
 	}
 
-	for(const auto i : m_pressed)
+	for (const auto i : m_pressed)
 	{
 		m_buttons[i.first]->clicked = (!m_buttons[i.first]->pressed && i.second);
 		m_buttons[i.first]->released = (m_buttons[i.first]->pressed && !i.second);
 		m_buttons[i.first]->pressed = i.second;
-		
+
 		if (m_buttons[i.first]->clicked)
 		{
 			m_buttons[i.first]->pressedStart = std::chrono::system_clock::now();
@@ -87,7 +85,7 @@ void Wii::update()
 
 		if (m_buttons[i.first]->pressed)
 		{
-			m_buttons[i.first]->pressedDuration = (int32)std::chrono::duration_cast< std::chrono::milliseconds >( std::chrono::system_clock::now() - m_buttons[i.first]->pressedStart ).count();
+			m_buttons[i.first]->pressedDuration = (int32)std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now() - m_buttons[i.first]->pressedStart).count();
 		}
 		else
 		{
@@ -98,10 +96,15 @@ void Wii::update()
 
 Point Wii::getPointerInWindow()
 {
+	return getPointerInWindow(true);
+}
+
+Point Wii::getPointerInWindow(bool shift)
+{
 	Point pos;
 	pos.x = (int)((1 - pointer.x) * Window::Size().x);
 	pos.y = (int)(pointer.y * Window::Size().y);
-	return pos;
+	return shift ? (pos * 2).moveBy(-(Window::Size() / 2)) : pos;
 }
 
 Point Wii::getJoystickInWindow()
@@ -110,4 +113,34 @@ Point Wii::getJoystickInWindow()
 	pos.x = (int)((joystick.x + 0.5) * Window::Size().x);
 	pos.y = (int)((0.5 - joystick.y) * Window::Size().y);
 	return pos;
+}
+
+bool Wii::AnyKeyClicked()
+{
+	if (!isConnected())
+	{
+		return false;
+	}
+
+	bool clicked = false;
+
+	clicked |= buttonA.clicked;
+	clicked |= buttonB.clicked;
+	clicked |= buttonOne.clicked;
+	clicked |= buttonTwo.clicked;
+	clicked |= buttonPlus.clicked;
+	clicked |= buttonMinus.clicked;
+	clicked |= buttonHome.clicked;
+	clicked |= buttonUp.clicked;
+	clicked |= buttonDown.clicked;
+	clicked |= buttonLeft.clicked;
+	clicked |= buttonRight.clicked;
+
+	if (isNunchukConnected())
+	{
+		clicked |= buttonC.clicked;
+		clicked |= buttonZ.clicked;
+	}
+
+	return clicked;
 }

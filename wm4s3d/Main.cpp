@@ -7,7 +7,6 @@ void DrawIR(Wii& wii);
 
 void Main()
 {
-	Wii::forceReport();
 	Wii wii[4];
 	Font guiFont(12), font(18);
 
@@ -70,6 +69,8 @@ void Main()
 	const Circle nunchuk_thumb(760, 290, 30);
 	const Ellipse nunchuk_C(875, 275, 18, 12);
 	const Rect nunchuk_Z(850, 300, 50, 30);
+
+	Wiimote::startScan();
 
 	while (System::Update())
 	{
@@ -139,7 +140,7 @@ void Main()
 
 		if (wii[idx].isConnected())
 		{
-			if (wii[idx].isNunchukOK())
+			if (wii[idx].isNunchukConnected())
 			{
 				Circle(760, 290, 40).draw(Palette::White);
 				Circle(760, 430, 20).draw(Palette::White);
@@ -177,6 +178,7 @@ void Main()
 		else
 		{
 			font(L"Wiiリモコンが接続されていません。").draw({ 400, 40 }, Palette::Red);
+			font(L"(①+②同時押しで接続)").draw({ 400, 80 }, Palette::Red);
 		}
 	}
 

@@ -1,4 +1,7 @@
 #pragma once
+
+#include <vector>
+#include <thread>
 #include <mutex>
 
 class Wiimote
@@ -16,11 +19,9 @@ public:
 private:
 	const unsigned short VID = 0x057e; // 任天堂
 	const unsigned short PID = 0x0306; // Nintendo RVL-CNT-01
-	// const unsinged short PID = 0x0330; // Nintendo RVL-CNT-01-TR
 
-	static const unsigned int SENSITIVITY_MODE = 6;
+	unsigned int m_sensitivityMode = 6;
 
-	int m_wiimoteNum;
 	bool m_isPlaying;
 	bool m_rumble;
 
@@ -64,9 +65,11 @@ private:
 
 	std::thread th;
 	std::mutex mtx;
-	static void updateThread(Wiimote* wii, bool forceReport);
+	static void updateThread(Wiimote* wii);
 	static void rumbleThread(Wiimote* wii, int ms);
 	void update();
+
+	bool open();
 
 	void parseAccel(unsigned char* in);
 	void parseButtons(unsigned char* in);
@@ -78,6 +81,18 @@ private:
 
 	void enableIR(IRMode mode, unsigned int sensitivity);
 	void disableIR();
+
+	// Bluetooth
+	static std::thread th_scan;
+	static void updateScanThread();
+
+	static void disconnect();
+
+	static std::vector<unsigned long> m_address;
+	static std::vector<Wiimote*> m_wm;
+
+	static bool m_scanning;
+	static int m_connected;
 
 public:
 	///<summary>
@@ -97,7 +112,7 @@ public:
 	public:
 		bool LED1, LED2, LED3, LED4;
 	} LEDs;
-	
+
 	///<summary>
 	/// 加速度
 	///</summary>
@@ -126,11 +141,11 @@ public:
 	/// </summary>
 	class Nunchuk
 	{
-		public:
-			bool C;
-			bool Z;
-			Point Joystick;
-			Acceletion acc;
+	public:
+		bool C;
+		bool Z;
+		Point Joystick;
+		Acceletion acc;
 	} nunchuk;
 
 	///<summary>
@@ -138,55 +153,66 @@ public:
 	///</summary>
 	class Pointers
 	{
+	public:
+		///<summary>
+		/// 赤外線
+		///</summary>
+		class IRPointer
+		{
 		public:
-			///<summary>
-			/// 赤外線
-			///</summary>
-			class IRPointer
-			{
-			public:
-				Point pos;
-				int size;
-				bool found;
-				IRPointer();
-				IRPointer(const IRPointer& pos);
-			};
+			Point pos;
+			int size;
+			bool found;
+			IRPointer();
+			IRPointer(const IRPointer& pos);
+		};
 
-			Pointers();
+		Pointers();
 
-			///<summary>
-			/// 赤外線の点の座標を返す (0-3)
-			///</summary>
-			IRPointer& operator[](unsigned int n);
+		///<summary>
+		/// 赤外線の点の座標を返す (0-3)
+		///</summary>
+		IRPointer& operator[](unsigned int n);
 
-			///<summary>
-			/// 赤外線の点の大きさが最大の点の座標を返す
-			///</summary>
-			IRPointer getMaximumPos();
-			
-			///<summary>
-			/// 2点の赤外線座標の中間の座標を返す (センサーバーの中心座標)
-			///</summary>
-			IRPointer getBarPos();
+		///<summary>
+		/// 赤外線の点の大きさが最大の点の座標を返す
+		///</summary>
+		IRPointer getMaximumPos();
 
-		private:
-			IRPointer pointers[4];
+		///<summary>
+		/// 2点の赤外線座標の中間の座標を返す (センサーバーの中心座標)
+		///</summary>
+		IRPointer getBarPos();
+
+	private:
+		IRPointer pointers[4];
 
 	} pointer;
 
 	Wiimote();
 	~Wiimote();
 
-	///<summary>
-	/// Wiiリモコンの接続を開始する
-	///</summary>
-	bool open();
+	/// <summary>
+	/// Wiiリモコンの接続待機を開始する
+	/// </summary>
+	static void startScan();
 
 	/// <summary>
-	/// Wiiリモコンの接続を開始する
+	/// Wiiリモコンの接続待機を終了する
 	/// </summary>
-	/// <param name="forceReport">InputReportTypeを強制的にIRAccel(0x33)にする</param>
-	bool open(bool forceReport);
+	static void stopScan();
+
+	/// <summary>
+	/// Wiiリモコンの接続が完了するまで待機する
+	/// </summary>
+	/// <param name="num">接続待機する台数</param>
+	/// <returns>true: 接続完了, false: 未接続、接続待機中</returns>
+	static bool waitConnect(const int num);
+
+	/// <summary>
+	/// 現在の接続台数を返す
+	/// </summary>
+	static int connectedCount();
 
 	///<summary>
 	/// Wiiリモコンの接続を閉じる
@@ -197,7 +223,7 @@ public:
 	///振動のON・OFF
 	///</summary>
 	void setRumble(bool on);
-	
+
 	/// <summary>
 	/// 振動しているかどうか
 	/// </summary>
@@ -222,19 +248,19 @@ public:
 	///<summary>
 	/// Wiiリモコンに接続しているか
 	///</summary>
-	bool isOpened();
+	bool isConnected();
 
 	/// <summary>
 	/// 再生を停止します
 	/// </summary>
 	void stopSound();
-	
+
 	/// <summary>
 	/// スピーカーから音声ファイルを再生します
 	/// </summary>
 	/// <param name="filename">ファイル名(形式は、8bitPCM)</param>
 	/// <param name="volume">音量。0-100</param>
-	void playSound(char* filename, int volume, bool doReport = false);
+	void playSound(const char* filename, const int volume, const bool doReport = false);
 
 	/// <summary>
 	/// スピーカーで音を再生中かどうか

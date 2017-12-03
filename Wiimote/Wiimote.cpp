@@ -1,22 +1,27 @@
-#include "Wiimote.hpp"
-
 #include <Windows.h>
+#include <codecvt>
+#include <fstream>
+#include <map>
+#include <chrono>
 #include <setupapi.h>
 #include <hidsdi.h>
-#include <chrono>
-#include <iostream>
-#include <fstream>
+#include <Bthsdpdef.h>
+#include <bluetoothapis.h>
+// #include <iostream>
+// #include <cstdio>
 #include <vector>
-#include <map>
 #include <thread>
-
-#include <cstdio>
-
-using namespace std;
+#include <mutex>
 
 #pragma comment(lib,"hid")
+#pragma comment(lib, "Bthprops")
 #pragma comment(lib, "setupapi")
 
+#include "Wiimote.hpp"
+
+/// <summary>
+/// OutputReport
+/// </summary>
 enum class OutputReport : unsigned char
 {
 	LEDs = 0x11,
@@ -31,6 +36,9 @@ enum class OutputReport : unsigned char
 	IR2 = 0x1a
 };
 
+/// <summary>
+/// InputReport
+/// </summary>
 enum class InputReport : unsigned char
 {
 	Status = 0x20,
@@ -44,23 +52,46 @@ enum class InputReport : unsigned char
 	IRExtensionAccel = 0x37
 };
 
+/// <summary>
+/// IR感度パラメータ
+/// </summary>
 const unsigned char IRblock[8][11] =
 {
-	{ 0x00,0x00,0x00,0x00,0x00,0x00,0x90,0x00,0xC0, 0x40,0x00},
-	{ 0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x0C,	0x00,0x00},
-	{ 0x00,0x00,0x00,0x00,0x00,0x00,0x90,0x00,0x41,	0x40,0x00},
-	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x64,0x00,0xfe, 0xfd,0x05},
-	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x96,0x00,0xb4, 0xb3,0x04},
-	{ 0x02,0x00,0x00,0x71,0x01,0x00,0xaa,0x00,0x64, 0x63,0x03},
-	{ 0x02,0x00,0x00,0x71,0x01,0x00,0xc8,0x00,0x36, 0x35,0x03},
-	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x72,0x00,0x20, 0x1f,0x03}
+	{ 0x00,0x00,0x00,0x00,0x00,0x00,0x90,0x00,0xC0, 0x40,0x00 },
+	{ 0x00,0x00,0x00,0x00,0x00,0x00,0xFF,0x00,0x0C,	0x00,0x00 },
+	{ 0x00,0x00,0x00,0x00,0x00,0x00,0x90,0x00,0x41,	0x40,0x00 },
+	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x64,0x00,0xfe, 0xfd,0x05 },
+	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x96,0x00,0xb4, 0xb3,0x04 },
+	{ 0x02,0x00,0x00,0x71,0x01,0x00,0xaa,0x00,0x64, 0x63,0x03 },
+	{ 0x02,0x00,0x00,0x71,0x01,0x00,0xc8,0x00,0x36, 0x35,0x03 },
+	{ 0x02,0x00,0x00,0x71,0x01,0x00,0x72,0x00,0x20, 0x1f,0x03 }
 };
+
+std::vector<unsigned long> Wiimote::m_address;
+std::vector<Wiimote*> Wiimote::m_wm;
+
+std::thread Wiimote::th_scan;
+bool Wiimote::m_scanning = false;
+int Wiimote::m_connected = 0;
+
+static bool regestWiimote(BLUETOOTH_DEVICE_INFO& btdi, bool doPair);
+static bool setServiceState(BLUETOOTH_DEVICE_INFO& btdi, bool enabled);
+static bool disconnectWiimote(BLUETOOTH_DEVICE_INFO& btdi);
+static bool removeWiimote(BLUETOOTH_DEVICE_INFO& btdi);
+bool isBluetoothActive();
 
 Wiimote::Wiimote()
 {
-	static int _num = 0;
-	m_wiimoteNum = _num++;
+	// Bluetoothが使えなかったらabort()
+	if (!isBluetoothActive())
+	{
+		abort();
+	}
 
+	// スキャンの時の為にとっておく
+	m_wm.push_back(this);
+
+	//各種変数初期化
 	wiihandle = nullptr;
 	buttons.One = buttons.Two = buttons.A = buttons.B =
 		buttons.Minus = buttons.Plus = buttons.Home =
@@ -109,8 +140,6 @@ void Wiimote::setWriteMethod()
 
 	delete[] out;
 	delete[] in;
-
-	return;
 }
 
 void Wiimote::write(unsigned char* output_report)
@@ -144,12 +173,240 @@ void Wiimote::read(unsigned char * input_report)
 	);
 }
 
-bool Wiimote::open()
+void Wiimote::updateScanThread()
 {
-	return open(false);
+	while (m_scanning)
+	{
+		BLUETOOTH_DEVICE_SEARCH_PARAMS params;
+		params.fReturnAuthenticated = true;
+		params.fReturnRemembered = true;
+		params.fReturnConnected = true;
+		params.fReturnUnknown = true;
+		params.fIssueInquiry = true;
+		params.cTimeoutMultiplier = 1;
+		params.dwSize = sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS);
+
+		HANDLE hFind;
+		BLUETOOTH_DEVICE_INFO btdi;
+		btdi.dwSize = sizeof(BLUETOOTH_DEVICE_INFO);
+
+		hFind = BluetoothFindFirstDevice(&params, &btdi);
+
+		if (hFind)
+		{
+			do
+			{
+				std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> cv;
+				std::string szName = cv.to_bytes(btdi.szName);
+				if (szName == "Nintendo RVL-CNT-01")
+				{
+					if (btdi.fConnected)
+					{
+						bool opened = false;
+						unsigned long addr = 0;
+						for (int i = 0; i < 6; i++)
+						{
+							addr <<= 8;
+							addr |= btdi.Address.rgBytes[i];
+						}
+
+						for (auto& i : m_address)
+						{
+							opened |= i == addr;
+						}
+
+						if (!opened && m_address.size() <= m_wm.size())
+						{
+							int num = m_address.size();
+							m_address.push_back(addr);
+							m_wm[num]->open();
+						}
+
+					}
+					else
+					{
+						// SYNCなしゲスト使用
+						regestWiimote(btdi, false);
+					}
+				}
+
+
+			} while (BluetoothFindNextDevice(hFind, &btdi));
+
+			BluetoothFindDeviceClose(hFind);
+			Sleep(60);
+		}
+	}
 }
 
-bool Wiimote::open(bool forceReport)
+bool isBluetoothActive()
+{
+	BLUETOOTH_FIND_RADIO_PARAMS param;
+	param.dwSize = sizeof(BLUETOOTH_FIND_RADIO_PARAMS);
+
+	HANDLE hrfind, hRadio;
+	hrfind = BluetoothFindFirstRadio(&param, &hRadio);
+	BluetoothFindRadioClose(hrfind);
+
+	return hrfind;
+}
+
+bool regestWiimote(BLUETOOTH_DEVICE_INFO& btdi, bool doPair)
+{
+	if (!removeWiimote(btdi))
+	{
+		return false;
+	}
+
+	if (doPair)
+	{
+		// SYNCのときは自分のMACアドレスをPINに渡してやると良いらしい
+		BLUETOOTH_FIND_RADIO_PARAMS param;
+		param.dwSize = sizeof(BLUETOOTH_FIND_RADIO_PARAMS);
+		HANDLE hrfind, hradio;
+
+		WCHAR pin[6];
+
+		if ((hrfind = BluetoothFindFirstRadio(&param, &hradio)))
+		{
+			BLUETOOTH_RADIO_INFO rinfo;
+			rinfo.dwSize = sizeof(BLUETOOTH_RADIO_INFO);
+			BluetoothGetRadioInfo(hradio, &rinfo);
+
+			for (int i = 0; i < 6; i++)
+			{
+				pin[i] = rinfo.address.rgBytes[i];
+			}
+
+		}
+		BluetoothFindRadioClose(hrfind);
+
+		// 非推奨だけど推奨されているやり方がわからないのでこれでやります
+#pragma warning (disable : 4995)
+		DWORD ret = BluetoothAuthenticateDevice(NULL, NULL, &btdi, pin, 6);
+		if (ret != 0)
+		{
+			_RPTN(_CRT_WARN, "Error : Failed to auth (code: %d).\n", ret);
+			return false;
+		}
+	}
+
+	// サービスの有効化
+	if (!setServiceState(btdi, true))
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool setServiceState(BLUETOOTH_DEVICE_INFO& btdi, bool enabled)
+{
+	if (BluetoothSetServiceState(NULL, &btdi, &HumanInterfaceDeviceServiceClass_UUID, (enabled ? BLUETOOTH_SERVICE_ENABLE : BLUETOOTH_SERVICE_DISABLE)) != 0)
+	{
+		_RPTN(_CRT_WARN, "Error : Failed to set service %s.\n", enabled ? "enable" : "disabled");
+		return false;
+	}
+
+	return true;
+}
+
+bool disconnectWiimote(BLUETOOTH_DEVICE_INFO& btdi)
+{
+	// サービスを有効の状態から無効にして、また有効にすると、PCから切断される
+	bool ret;
+	ret = setServiceState(btdi, false);
+	ret &= setServiceState(btdi, true);
+	return ret;
+}
+
+bool removeWiimote(BLUETOOTH_DEVICE_INFO& btdi)
+{
+	if (btdi.fRemembered)
+	{
+		if (BluetoothRemoveDevice(&btdi.Address) != 0)
+		{
+			_RPT0(_CRT_WARN, "Error : Failed to remove wiimote.\n");
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Wiimote::stopScan()
+{
+	if (m_scanning)
+	{
+		m_scanning = false;
+		th_scan.join();
+	}
+}
+
+void Wiimote::startScan()
+{
+	if (!m_scanning)
+	{
+		m_scanning = true;
+		th_scan = std::thread(updateScanThread);
+	}
+}
+
+bool Wiimote::waitConnect(const int num)
+{
+	startScan();
+
+	if (m_address.size() >= num)
+	{
+		stopScan();
+		return true;
+	}
+
+	return false;
+}
+
+void Wiimote::disconnect()
+{
+	BLUETOOTH_DEVICE_SEARCH_PARAMS params;
+	params.fReturnAuthenticated = true;
+	params.fReturnRemembered = true;
+	params.fReturnConnected = true;
+	params.fReturnUnknown = true;
+	params.fIssueInquiry = true;
+	params.cTimeoutMultiplier = 1;
+	params.dwSize = sizeof(BLUETOOTH_DEVICE_SEARCH_PARAMS);
+
+	HANDLE hFind;
+	BLUETOOTH_DEVICE_INFO btdi;
+	btdi.dwSize = sizeof(BLUETOOTH_DEVICE_INFO);
+
+	hFind = BluetoothFindFirstDevice(&params, &btdi);
+
+	if (hFind)
+	{
+		do
+		{
+			std::wstring_convert<std::codecvt_utf8<wchar_t>, wchar_t> cv;
+			std::string szName = cv.to_bytes(btdi.szName);
+			if (szName == "Nintendo RVL-CNT-01" && btdi.fConnected)
+			{
+				disconnectWiimote(btdi);
+			}
+
+
+		} while (BluetoothFindNextDevice(hFind, &btdi));
+
+		BluetoothFindDeviceClose(hFind);
+	}
+
+}
+
+int Wiimote::connectedCount()
+{
+	return m_connected;
+}
+
+bool Wiimote::open()
 {
 	//GUIDを取得
 	GUID HidGuid;
@@ -178,7 +435,7 @@ bool Wiimote::open(bool forceReport)
 
 		//確保したメモリ領域に情報を取得
 		SetupDiGetDeviceInterfaceDetail(hDevInfo, &DevData, Detail, size, &size, 0);
-		
+
 		//とりあえずハンドルを取得
 		HANDLE handle = CreateFile(
 			Detail->DevicePath,
@@ -195,7 +452,7 @@ bool Wiimote::open(bool forceReport)
 		{
 			continue;
 		}
-		
+
 		//アトリビュートを取得
 		HIDD_ATTRIBUTES attr;
 		attr.Size = sizeof(attr);
@@ -208,25 +465,29 @@ bool Wiimote::open(bool forceReport)
 				HIDP_CAPS Capabilities;
 				PHIDP_PREPARSED_DATA PreparsedData;
 				NTSTATUS Result = HIDP_STATUS_INVALID_PREPARSED_DATA;
-				
+
 				if (HidD_GetPreparsedData(handle, &PreparsedData))
 				{
 					Result = HidP_GetCaps(PreparsedData, &Capabilities);
 					HidD_FreePreparsedData(PreparsedData);
 				}
+
 				//Capsを取得できたか確認
 				if (Result == HIDP_STATUS_SUCCESS)
 				{
 					//接続成功
-					if (detect_count == m_wiimoteNum)
+					if (detect_count == m_connected)
 					{
+						m_connected++;
+
 						input_length = Capabilities.InputReportByteLength;
 						output_length = Capabilities.OutputReportByteLength;
 						wiihandle = handle;
 						Sleep(100);
 						setWriteMethod();
-						th = std::thread(updateThread, this, forceReport);
+						th = std::thread(updateThread, this);
 						Sleep(100);
+
 						return true;
 					}
 					else
@@ -246,15 +507,30 @@ bool Wiimote::open(bool forceReport)
 
 void Wiimote::close()
 {
+	stopScan();
+
+	if (m_connected == 0)
+	{
+		return;
+	}
+
 	if (wiihandle != nullptr)
 	{
+		m_connected--;
+
 		m_rumble = false;
 		setLED(0x0);
-		Sleep(30);
+		Sleep(60);
 		CloseHandle(wiihandle);
 		wiihandle = nullptr;
 		th.join();
 	}
+
+	if (m_connected == 0)
+	{
+		disconnect();
+	}
+
 }
 
 void Wiimote::setRumble(bool on)
@@ -396,7 +672,7 @@ void Wiimote::update()
 			read(in);
 			mtx.unlock();
 
-			enableIR(IRMode::Extended, SENSITIVITY_MODE);
+			enableIR(IRMode::Extended, m_sensitivityMode);
 
 			extensionType = ExtensionType::None;
 
@@ -409,8 +685,8 @@ void Wiimote::update()
 		break;
 
 	default:
-		string ex = "Unknown report type: " + in[0];
-		throw exception(ex.c_str());
+		std::string ex = "Unknown report type: " + in[0];
+		throw std::exception(ex.c_str());
 		break;
 	}
 
@@ -615,7 +891,7 @@ void Wiimote::initializeExtension()
 		write(out);
 		read(in);
 
-		enableIR(IRMode::Basic, SENSITIVITY_MODE);
+		enableIR(IRMode::Basic, m_sensitivityMode);
 
 		// 0x04の0xa40020からデータを読み込む (EXT CALIBRATION)
 		out[0] = (unsigned char)OutputReport::ReadMemory;
@@ -662,7 +938,7 @@ void Wiimote::initializeExtension()
 	delete[] in;
 }
 
-void Wiimote::updateThread(Wiimote* wii, bool forceReport)
+void Wiimote::updateThread(Wiimote* wii)
 {
 	unsigned char* out = new unsigned char[wii->output_length];
 	unsigned char* in = new unsigned char[wii->input_length];
@@ -693,19 +969,17 @@ void Wiimote::updateThread(Wiimote* wii, bool forceReport)
 	wii->accelCalibrationInfo.YG = in[11];
 	wii->accelCalibrationInfo.ZG = in[12];
 
-	Sleep(10);
+	Sleep(60);
 
-	if (forceReport)
-	{
-		out[0] = (unsigned char)OutputReport::DataReportType;
-		out[1] = 0x00;
-		out[2] = (unsigned char)InputReport::IRAccel;
+	// 強制的にIRAccelでレポートさせる(安定化の為)
+	out[0] = (unsigned char)OutputReport::DataReportType;
+	out[1] = 0x00;
+	out[2] = (unsigned char)InputReport::IRAccel;
 
-		wii->write(out);
-		wii->read(in);
+	wii->write(out);
+	wii->read(in);
 
-		Sleep(10);
-	}
+	Sleep(60);
 
 	// ステータス情報の取得
 	out[0] = (unsigned char)OutputReport::Status;
@@ -871,13 +1145,12 @@ void Wiimote::stopSound()
 	m_isPlaying = false;
 }
 
-void Wiimote::playSound(char* filename, int volume, bool doReport)
+void Wiimote::playSound(const char* filename, const int volume, const bool doReport)
 {
 	unsigned char* out = new unsigned char[output_length];
 
 	m_isPlaying = true;
-	volume = min(100, max(0, volume));
-	unsigned char _vol = (unsigned char)(volume / 100.0 * 0xFF);
+	unsigned char vol = (unsigned char)(min(100, max(0, volume)) / 100.0 * 0xFF);
 
 	mtx.lock();
 
@@ -934,7 +1207,7 @@ void Wiimote::playSound(char* filename, int volume, bool doReport)
 	out[7] = 0x40; // フォーマット。0x40なら8bitPCM、0x00ならADPCM
 	out[8] = 0x70; // サンプリングレート
 	out[9] = 0x17; // サンプリングレート
-	out[10] = _vol; // ボリューム 0x00から0xffの範囲	
+	out[10] = vol; // ボリューム 0x00から0xffの範囲	
 	out[11] = 0x00;
 	out[12] = 0x00;
 	write(out);
@@ -960,9 +1233,11 @@ void Wiimote::playSound(char* filename, int volume, bool doReport)
 
 	if (doReport) mtx.unlock();
 
+	Sleep(100);
+
 	// 音声データ送信
 	std::ifstream stream(filename, std::ios::binary);
-	vector<char> hex;
+	std::vector<char> hex;
 	unsigned char data[1];
 
 	while (!stream.fail())
@@ -1034,8 +1309,8 @@ Wiimote::Pointers::IRPointer Wiimote::Pointers::getMaximumPos()
 Wiimote::Pointers::IRPointer Wiimote::Pointers::getBarPos()
 {
 	IRPointer p;
-	multimap<int, int> pos;
-	
+	std::multimap<int, int> pos;
+
 	for (int i = 0; i < 4; i++)
 	{
 		if (pointers[i].found)
@@ -1073,7 +1348,7 @@ Wiimote::Pointers::IRPointer& Wiimote::Pointers::operator[](unsigned int n)
 	return pointers[n];
 }
 
-bool Wiimote::isOpened()
+bool Wiimote::isConnected()
 {
 	return wiihandle != nullptr;
 }

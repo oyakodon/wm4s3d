@@ -13,6 +13,7 @@ Oyakodon (<https://twitter.com/alltekito>)
 ## 特徴
 
 - Wiiリモコンのボタンの状態や加速度、赤外線情報(ポインター)、ヌンチャクの情報が取得できます
+- WiiリモコンをPCに自動でペアリングすることができます
 - Wiiリモコンのスピーカーから音が出せます (音質がとても悪いですが...)
 - Siv3Dで使いやすい工夫をしています (wii.buttonA.pressedなど)
 
@@ -32,9 +33,6 @@ Oyakodon (<https://twitter.com/alltekito>)
 - Visual Studioでプロジェクトをビルドしてください。
   - Siv3Dが必要です。
   - Engineフォルダは容量の関係でリポジトリに含めていないので、注意してください。
-
-- Windows 10でのWiiリモコンのBluetoothペアリングは起動前に済ませてください。
-  - 参考 : <https://shirabeta-stock.com/wiiremote_pairing/>
 
 - Windows 10 (バージョン1703, OSビルド15063.674)で、Wiiリモコン2台同時接続ができることを確認しています。 (ヌンチャクも確認済み)
 

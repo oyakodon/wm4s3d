@@ -8,22 +8,18 @@ int main()
 {
 	Wiimote wii;
 
-	cout << "Initializing...";
-	if (!wii.open())
-	{
-		cerr << "An error occured in wii.open()" << endl;
-		return 1;
-	}
-	else
-	{
-		wii.setLED(0x1);
-	}
+	cout << "Connecting...";
+	// ˆê‘äÚ‘±‚³‚ê‚é‚Ü‚Å‘Ò‹@
+	while (!Wiimote::waitConnect(1)) ;
+
+	// LEDÁ“”
+	wii.setLED(0x0);
+
 	cout << " : OK" << endl;
 	cout << "Running..." << endl;
 	cout << "Battery : " << wii.Battery << endl;
 
-
-
+	// HOMEƒ{ƒ^ƒ“‚ª‰Ÿ‚³‚ê‚é‚Ü‚Å
 	while (!wii.buttons.Home)
 	{
 		printf("\rA: %d", wii.buttons.A);

@@ -25,21 +25,11 @@ private:
 	std::unordered_map<ButtonType, bool> m_pressed;
 	std::unordered_map<ButtonType, Button*> m_buttons;
 
-	static bool m_forceReport;
-
 public:
 	Wiimote controller;
 
 	Wii();
 	~Wii();
-
-	/// <summary>
-	/// Wiiリモコンがなかなか認識されない時に使う (Siv3Dの起動ロゴで止まるとき等)
-	/// </summary>
-	static void forceReport()
-	{
-		m_forceReport = true;
-	}
 
 	/// <summary>
 	/// Wiiリモコンのボタン情報などを更新します (ループ毎に呼び出す)
@@ -51,7 +41,7 @@ public:
 	/// </summary>
 	bool isConnected()
 	{
-		return controller.isOpened();
+		return controller.isConnected();
 	}
 
 	/// <summary>
@@ -135,7 +125,7 @@ public:
 	/// <summary>
 	/// ヌンチャクが使えるかどうか
 	/// </summary>
-	bool isNunchukOK()
+	bool isNunchukConnected()
 	{
 		return controller.extensionType == Wiimote::ExtensionType::Nunchuk;
 	}
@@ -146,10 +136,24 @@ public:
 	Point getPointerInWindow();
 
 	/// <summary>
+	/// ウィンドウ上でのポインターの位置を計算して返します
+	/// </summary>
+	/// <param name="shift">trueなら座標を2倍してWindow::Size()の半分並行移動させた座標を返します</param>
+	Point getPointerInWindow(bool shift);
+
+	/// <summary>
 	/// ウィンドウ上でのジョイスティックの位置を計算して返します
 	/// </summary>
 	Point getJoystickInWindow();
 
+	/// <summary>
+	/// いずれかのボタンが押されたかどうか
+	/// </summary>
+	bool AnyKeyClicked();
+
+	/// <summary>
+	/// ボタン
+	/// </summary>
 	Button buttonA;
 	Button buttonB;
 	Button buttonOne;
