@@ -42,6 +42,17 @@ Oyakodon (<https://twitter.com/alltekito>)
 
 - Windows 10 (バージョン1703, OSビルド15063.674)で、Wiiリモコン2台同時接続ができることを確認しています。 (ヌンチャクも確認済み)
 
+- Qiitaの記事も参考に。 <https://qiita.com/Oyakodon/items/c63ad4ee4794401aecac>
+
+## 謝辞
+
+このプログラムは、MurakamiShun様のプログラムに大きな影響を受けています。
+私は、こちらのプログラムに音を出す機能と自動ペアリング機能を付けて少し形を整えただけです。
+おかげで、部活で使用したり等することができます、ありがとうございます。
+事前の連絡なしの利用、また後々の追記になってしまい、申し訳ありません。
+
+<https://github.com/MurakamiShun/Wiimote>
+
 ## sample.raw
 
 sample.rawは
