@@ -152,9 +152,9 @@ void Main()
 				Circle(875, 290, 40).draw(Palette::White);
 				Circle(875, 430, 20).draw(Palette::White);
 				nunchuk_body.draw({ 875, 375 }, Palette::White);
-				nunchuk_C.draw(Palette::White).drawFrame(0.0, wii[idx].buttonC.pressed ? 5.0 : 1.0, Palette::Black);
+				nunchuk_C.draw(Palette::White).drawFrame(0.0, wii[idx].nunchukC.pressed ? 5.0 : 1.0, Palette::Black);
 				guiFont(L"C").drawCenter(nunchuk_C.center, Palette::Black);
-				nunchuk_Z.draw(Palette::White).drawFrame(0.0, wii[idx].buttonZ.pressed ? 5.0 : 1.0, Palette::Black);
+				nunchuk_Z.draw(Palette::White).drawFrame(0.0, wii[idx].nunchukZ.pressed ? 5.0 : 1.0, Palette::Black);
 				guiFont(L"Z").drawCenter(nunchuk_Z.center, Palette::Black);
 
 				font(L"ヌンチャク").draw({ 680, 40 });

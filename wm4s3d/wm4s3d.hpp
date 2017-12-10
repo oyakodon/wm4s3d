@@ -25,6 +25,8 @@ private:
 	std::unordered_map<ButtonType, bool> m_pressed;
 	std::unordered_map<ButtonType, Button*> m_buttons;
 
+	bool m_connected;
+
 public:
 	Wiimote controller;
 
@@ -42,6 +44,20 @@ public:
 	bool isConnected()
 	{
 		return controller.isConnected();
+	}
+
+	/// <summary>
+	/// Wiiリモコンが接続された時はtrue、それ以外はfalseを返します。
+	/// </summary>
+	bool hasConnected()
+	{
+		if (!m_connected && isConnected())
+		{
+			m_connected = true;
+			return true;
+		}
+
+		return false;
 	}
 
 	/// <summary>
@@ -165,8 +181,8 @@ public:
 	Button buttonDown;
 	Button buttonLeft;
 	Button buttonRight;
-	Button buttonC;
-	Button buttonZ;
+	Button nunchukC;
+	Button nunchukZ;
 
 	/// <summary>
 	/// ポインターの位置 (要センサーバー)

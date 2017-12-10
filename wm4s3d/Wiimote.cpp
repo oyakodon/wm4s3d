@@ -354,15 +354,15 @@ void Wiimote::startScan()
 
 bool Wiimote::waitConnect(const int num)
 {
-	startScan();
-
 	if (m_address.size() >= num)
 	{
 		stopScan();
-		return true;
+		return false;
 	}
 
-	return false;
+	startScan();
+
+	return true;
 }
 
 void Wiimote::disconnect()

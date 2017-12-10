@@ -9,6 +9,8 @@ Button::Button()
 
 Wii::Wii()
 {
+	m_connected = false;
+
 	m_buttons[ButtonType::One] = &buttonOne;
 	m_buttons[ButtonType::Two] = &buttonTwo;
 	m_buttons[ButtonType::A] = &buttonA;
@@ -20,8 +22,8 @@ Wii::Wii()
 	m_buttons[ButtonType::Down] = &buttonDown;
 	m_buttons[ButtonType::Left] = &buttonLeft;
 	m_buttons[ButtonType::Right] = &buttonRight;
-	m_buttons[ButtonType::C] = &buttonC;
-	m_buttons[ButtonType::Z] = &buttonZ;
+	m_buttons[ButtonType::C] = &nunchukC;
+	m_buttons[ButtonType::Z] = &nunchukZ;
 }
 
 Wii::~Wii()
@@ -138,8 +140,8 @@ bool Wii::AnyKeyClicked()
 
 	if (isNunchukConnected())
 	{
-		clicked |= buttonC.clicked;
-		clicked |= buttonZ.clicked;
+		clicked |= nunchukC.clicked;
+		clicked |= nunchukZ.clicked;
 	}
 
 	return clicked;
