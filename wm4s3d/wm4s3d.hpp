@@ -3,6 +3,13 @@
 #include "Wiimote.hpp"
 #include <chrono>
 
+enum class Threshould : int
+{
+	Weak = 220,
+	Normal = 400,
+	Strong = 700
+};
+
 class Button
 {
 public:
@@ -26,6 +33,11 @@ private:
 	std::unordered_map<ButtonType, Button*> m_buttons;
 
 	bool m_connected;
+
+	Optional<Vec3> m_prevAcc;
+	Stopwatch m_shakeWait;
+	bool m_isShaked;
+	int m_shakeThreshould;
 
 public:
 	Wiimote controller;
@@ -130,12 +142,44 @@ public:
 	{
 		switch (num)
 		{
-			case 0: return controller.LEDs.LED1;
-			case 1: return controller.LEDs.LED2;
-			case 2: return controller.LEDs.LED3;
-			case 3: return controller.LEDs.LED4;
-			default: return false;
+		case 0: return controller.LEDs.LED1;
+		case 1: return controller.LEDs.LED2;
+		case 2: return controller.LEDs.LED3;
+		case 3: return controller.LEDs.LED4;
+		default: return false;
 		}
+	}
+
+	/// <summary>
+	/// Wiiリモコンの加速度を取得します
+	/// </summary>
+	Vec3 acc()
+	{
+		return Vec3(controller.acc.x, controller.acc.y, controller.acc.z);
+	}
+
+	/// <summary>
+	/// 振られたことを検知する際のしきい値を設定します
+	/// </summary>
+	void setShakeThreshould(int thd)
+	{
+		m_shakeThreshould = thd;
+	}
+
+	/// <summary>
+	/// 振られたことを検知する際のしきい値を設定します
+	/// </summary>
+	void setShakeThreshould(Threshould thd)
+	{
+		setShakeThreshould((int)thd);
+	}
+
+	/// <summary>
+	/// Wiiリモコンが振られたかどうか
+	/// </summary>
+	bool isShaked()
+	{
+		return m_isShaked;
 	}
 
 	/// <summary>

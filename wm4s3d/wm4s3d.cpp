@@ -11,6 +11,9 @@ Wii::Wii()
 {
 	m_connected = false;
 
+	m_isShaked = false;
+	m_shakeThreshould = (int)Threshould::Normal;
+
 	m_buttons[ButtonType::One] = &buttonOne;
 	m_buttons[ButtonType::Two] = &buttonTwo;
 	m_buttons[ButtonType::A] = &buttonA;
@@ -61,6 +64,29 @@ void Wii::update()
 		pointer = { ir.pos.x, ir.pos.y };
 		joystick = { controller.nunchuk.Joystick.x, controller.nunchuk.Joystick.y };
 
+		if (m_shakeWait.isActive())
+		{
+			m_isShaked = false;
+
+			if (m_shakeWait.ms() >= 500)
+			{
+				m_shakeWait.reset();
+			}
+		}
+		else if (m_prevAcc.has_value())
+		{
+			Vec3 now = acc();
+			m_isShaked = Abs(now.x + now.y + now.z - m_prevAcc.value().x - m_prevAcc.value().y - m_prevAcc.value().z) * 60 >= m_shakeThreshould;
+
+			if (m_isShaked)
+			{
+				m_shakeWait.start();
+			}
+
+		}
+
+		m_prevAcc = acc();
+
 		if (isNunchukConnected())
 		{
 			m_pressed[ButtonType::C] = controller.nunchuk.C;
@@ -87,7 +113,7 @@ void Wii::update()
 
 		if (m_buttons[i.first]->pressed)
 		{
-			m_buttons[i.first]->pressedDuration = (int32)std::chrono::duration_cast< std::chrono::milliseconds >(std::chrono::system_clock::now() - m_buttons[i.first]->pressedStart).count();
+			m_buttons[i.first]->pressedDuration = (int32)std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - m_buttons[i.first]->pressedStart).count();
 		}
 		else
 		{
